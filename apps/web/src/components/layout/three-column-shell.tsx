@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChatColumn } from "./chat-column";
 import { FeedColumn } from "./feed-column";
 import { PostDetailColumn } from "./post-detail-column";
 import { feedPosts, type FeedPost } from "./feed-data";
 import { DockNavColumn, NAV_COLUMN_BASE, NAV_DOCK_WIDTH, type DockNavItem } from "./dock-nav-column";
+import { MobileNavMenu } from "./mobile-nav-menu";
 import {
   Home,
   Bookmark,
@@ -153,49 +153,6 @@ const NAV_ITEMS: DockNavItem[] = [
 // All 4 items shown on mobile too
 const MOBILE_NAV_ITEMS = NAV_ITEMS;
 
-// ─── Mobile top nav — edge-to-edge glassmorphic bar ───────────────────────────
-
-function MobileTopNav({ items }: { items: DockNavItem[] }) {
-  const pathname = usePathname();
-  return (
-    <nav
-      className="fixed inset-x-0 top-0 z-50"
-      style={{
-        background: "rgba(255,255,255,0.18)",
-        backdropFilter: "blur(24px) saturate(180%)",
-        WebkitBackdropFilter: "blur(24px) saturate(180%)",
-        borderBottom: "1px solid rgba(255,255,255,0.35)",
-        boxShadow: "0 2px 8px rgba(0,0,0,0.08), inset 0 -1px 0 rgba(255,255,255,0.5)",
-        // iOS safe-area nudge
-        paddingTop: "env(safe-area-inset-top, 0px)",
-      }}
-    >
-      <ul className="flex items-center justify-around gap-1 px-2 py-2.5">
-        {items.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <li key={item.href} className="flex-1">
-              <Link
-                href={item.href}
-                aria-label={item.label}
-                aria-current={active ? "page" : undefined}
-                className={cx(
-                  "flex items-center justify-center rounded-[16px] px-4 py-2.5 transition-all duration-150",
-                  active
-                    ? "bg-white/50 text-blue-600 shadow-sm dark:bg-white/15 dark:text-blue-400"
-                    : "text-neutral-500 hover:bg-white/30 hover:text-neutral-800 dark:text-neutral-400 dark:hover:text-neutral-100",
-                )}
-              >
-                <item.icon className="size-[22px]" strokeWidth={1.75} />
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
-}
-
 // ─── Shell ────────────────────────────────────────────────────────────────────
 
 export function ThreeColumnShell({ children }: { children?: React.ReactNode }) {
@@ -298,7 +255,7 @@ export function ThreeColumnShell({ children }: { children?: React.ReactNode }) {
 
       </div>
 
-      {/* ── Mobile (< md): full-screen canvas + top nav bar ─────────────── */}
+      {/* ── Mobile (< md): full-screen canvas, nav folded into each page's toolbar ── */}
       <div
         className="flex gap-1 overflow-hidden md:hidden"
         style={{
@@ -308,14 +265,17 @@ export function ThreeColumnShell({ children }: { children?: React.ReactNode }) {
           bottom: 0,
           left: 0,
           zIndex: 0,
-          paddingTop: "calc(env(safe-area-inset-top, 0px) + 64px)",
+          paddingTop: "env(safe-area-inset-top, 0px)",
         }}
       >
-        <MobileTopNav items={MOBILE_NAV_ITEMS} />
-
         <div className="min-w-0 flex-1 overflow-y-auto">
           {isSettingsRoute ? (
-            <div className="p-4">{children}</div>
+            <div className="p-4">
+              <div className="mb-3 flex items-center">
+                <MobileNavMenu items={MOBILE_NAV_ITEMS} title="Settings" />
+              </div>
+              {children}
+            </div>
           ) : isGraphRoute ? (
             <PostDetailColumn
               post={selectedPost}
@@ -323,16 +283,14 @@ export function ThreeColumnShell({ children }: { children?: React.ReactNode }) {
               onSelectPost={setSelectedPost}
               feedVisible={feedPanelOpen}
               onShowFeed={openFeedPanel}
+              mobileNavItems={MOBILE_NAV_ITEMS}
             />
           ) : (
-            <ChatColumn
-              onShowFeed={!feedPanelOpen ? openFeedPanel : undefined}
-              showSuggestions={false}
-            />
+            <ChatColumn showSuggestions={false} mobileNavItems={MOBILE_NAV_ITEMS} />
           )}
         </div>
 
-        {!isSettingsRoute && (
+        {isGraphRoute && (
           <>
             <ColumnGap
               onMouseDown={splitFeedHandleMouseDown}

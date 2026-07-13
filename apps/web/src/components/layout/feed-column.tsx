@@ -264,7 +264,7 @@ export function FeedColumn({
               onKeyDown={(e) => {
                 if (e.key === "Escape") closeSearch();
               }}
-              className="h-full w-full rounded-2xl bg-transparent pl-9 pr-4 text-sm text-primary outline-none placeholder-quaternary focus:outline-none"
+              className="h-full w-full rounded-2xl bg-transparent pl-9 pr-4 text-base text-primary outline-none placeholder-quaternary focus:outline-none md:text-sm"
             />
           </div>
         ) : (
@@ -282,14 +282,16 @@ export function FeedColumn({
               <Search className="size-[18px]" />
             </button>
           )}
-          <button
-            type="button"
-            onClick={onHide}
-            aria-label="Hide feed panel"
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg text-quaternary transition-colors hover:bg-secondary hover:text-secondary"
-          >
-            <SidePanelIcon className="size-5" />
-          </button>
+          {!searchAtBottom && (
+            <button
+              type="button"
+              onClick={onHide}
+              aria-label="Hide feed panel"
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg text-quaternary transition-colors hover:bg-secondary hover:text-secondary"
+            >
+              <SidePanelIcon className="size-5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -308,7 +310,7 @@ export function FeedColumn({
               onKeyDown={(e) => {
                 if (e.key === "Escape") closeSearch();
               }}
-              className="h-full w-full rounded-2xl bg-transparent pl-10 pr-4 text-sm text-primary outline-none placeholder-quaternary focus:outline-none"
+              className="h-full w-full rounded-2xl bg-transparent pl-10 pr-4 text-base text-primary outline-none placeholder-quaternary focus:outline-none md:text-sm"
             />
           </div>
         </div>

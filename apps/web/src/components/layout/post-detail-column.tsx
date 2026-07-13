@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { MessageCircle, Heart, BadgeCheck, Plus, Minus, Locate } from "lucide-react";
 import { SidePanelIcon } from "@/components/icons/side-panel-icon";
+import { MobileNavMenu } from "./mobile-nav-menu";
+import type { DockNavItem } from "./dock-nav-column";
 import type { FeedPost } from "./feed-data";
 import { cx } from "@/utils/cx";
 
@@ -158,6 +160,7 @@ interface PostDetailColumnProps {
   onSelectPost: (post: FeedPost) => void;
   feedVisible?: boolean;
   onShowFeed?: () => void;
+  mobileNavItems?: DockNavItem[];
 }
 
 export function PostDetailColumn({
@@ -166,6 +169,7 @@ export function PostDetailColumn({
   onSelectPost,
   feedVisible = true,
   onShowFeed,
+  mobileNavItems,
 }: PostDetailColumnProps) {
   const [transform, setTransform]       = useState<Transform>({ x: INITIAL_PAN.x, y: INITIAL_PAN.y, scale: INITIAL_ZOOM });
   const [cardPositions, setCardPositions] = useState<CardPositions>(INITIAL_CARD_LAYOUT);
@@ -529,7 +533,13 @@ export function PostDetailColumn({
 
       {/* ── Floating title — no background, sits above the blur ─────────── */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-3 px-8 py-5">
-        <h2 className="flex-1 text-2xl font-medium text-primary">Discover</h2>
+        {mobileNavItems ? (
+          <div className="pointer-events-auto min-w-0 flex-1">
+            <MobileNavMenu items={mobileNavItems} title="Discover" />
+          </div>
+        ) : (
+          <h2 className="min-w-0 flex-1 truncate text-2xl font-medium text-primary">Discover</h2>
+        )}
         {!feedVisible && onShowFeed && (
           <button
             type="button"

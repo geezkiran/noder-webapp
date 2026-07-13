@@ -18,22 +18,34 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+const mongoUri = process.env.MONGODB_URI ?? "mongodb://localhost:27017/noder-enterprise";
+
+app.use(async (_req, _res, next) => {
+  try {
+    await connectDatabase(mongoUri);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.use("/api/projects", projectsRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-const port = Number(process.env.PORT ?? 4000);
-const mongoUri = process.env.MONGODB_URI ?? "mongodb://localhost:27017/noder-enterprise";
-
-async function start() {
-  await connectDatabase(mongoUri);
-  app.listen(port, () => {
-    console.log(`API running on http://localhost:${port}`);
-  });
+if (!process.env.VERCEL) {
+  const port = Number(process.env.PORT ?? 4000);
+  connectDatabase(mongoUri)
+    .then(() => {
+      app.listen(port, () => {
+        console.log(`API running on http://localhost:${port}`);
+      });
+    })
+    .catch((error) => {
+      console.error("Failed to start server:", error);
+      process.exit(1);
+    });
 }
 
-start().catch((error) => {
-  console.error("Failed to start server:", error);
-  process.exit(1);
-});
+export default app;

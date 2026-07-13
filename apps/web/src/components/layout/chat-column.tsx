@@ -324,7 +324,13 @@ function HistoryPanel({
 
 // ─── ChatColumn ───────────────────────────────────────────────────────────────
 
-export function ChatColumn({ onShowFeed }: { onShowFeed?: () => void }) {
+export function ChatColumn({
+  onShowFeed,
+  showSuggestions = true,
+}: {
+  onShowFeed?: () => void;
+  showSuggestions?: boolean;
+}) {
   const [sessions, setSessions] = useState<ChatSession[]>(() => [newSession()]);
   const [activeId, setActiveId] = useState(() => sessions[0].id);
   const [input, setInput] = useState("");
@@ -399,18 +405,20 @@ export function ChatColumn({ onShowFeed }: { onShowFeed?: () => void }) {
               onModelChange={setModelId}
               onEffortChange={setEffort}
             />
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => send(s)}
-                  className="rounded-full border-[0.5px] border-gray-300 bg-white px-3.5 py-1.5 text-[13px] text-secondary transition-colors hover:bg-secondary dark:border-neutral-800 dark:bg-[#161616]"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+            {showSuggestions && (
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => send(s)}
+                    className="rounded-full border-[0.5px] border-gray-300 bg-white px-3.5 py-1.5 text-[13px] text-secondary transition-colors hover:bg-secondary dark:border-neutral-800 dark:bg-[#161616]"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : (

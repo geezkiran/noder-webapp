@@ -114,6 +114,7 @@ function FeedColumnSlot({
   selectedPostId,
   onSelectPost,
   onHide,
+  searchPosition,
 }: {
   open: boolean;
   width: number;
@@ -122,6 +123,7 @@ function FeedColumnSlot({
   selectedPostId: string | null;
   onSelectPost: (post: FeedPost) => void;
   onHide: () => void;
+  searchPosition?: "top" | "bottom";
 }) {
   return (
     <div
@@ -134,6 +136,7 @@ function FeedColumnSlot({
           selectedPostId={selectedPostId}
           onSelectPost={onSelectPost}
           onHide={onHide}
+          searchPosition={searchPosition}
         />
       </div>
     </div>
@@ -150,32 +153,28 @@ const NAV_ITEMS: DockNavItem[] = [
 // All 4 items shown on mobile too
 const MOBILE_NAV_ITEMS = NAV_ITEMS;
 
-// ─── Mobile bottom nav — floating glassmorphic dock ──────────────────────────
+// ─── Mobile top nav — edge-to-edge glassmorphic bar ───────────────────────────
 
-function MobileBottomNav({ items }: { items: DockNavItem[] }) {
+function MobileTopNav({ items }: { items: DockNavItem[] }) {
   const pathname = usePathname();
   return (
     <nav
-      className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2"
+      className="fixed inset-x-0 top-0 z-50"
       style={{
-        // Glassmorphic pill
         background: "rgba(255,255,255,0.18)",
         backdropFilter: "blur(24px) saturate(180%)",
         WebkitBackdropFilter: "blur(24px) saturate(180%)",
-        border: "1px solid rgba(255,255,255,0.35)",
-        borderRadius: "24px",
-        boxShadow:
-          "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.5)",
-        padding: "8px 12px",
+        borderBottom: "1px solid rgba(255,255,255,0.35)",
+        boxShadow: "0 2px 8px rgba(0,0,0,0.08), inset 0 -1px 0 rgba(255,255,255,0.5)",
         // iOS safe-area nudge
-        marginBottom: "env(safe-area-inset-bottom, 0px)",
+        paddingTop: "env(safe-area-inset-top, 0px)",
       }}
     >
-      <ul className="flex items-center gap-1">
+      <ul className="flex items-center justify-around gap-1 px-2 py-2.5">
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           return (
-            <li key={item.href}>
+            <li key={item.href} className="flex-1">
               <Link
                 href={item.href}
                 aria-label={item.label}
@@ -299,11 +298,21 @@ export function ThreeColumnShell({ children }: { children?: React.ReactNode }) {
 
       </div>
 
-      {/* ── Mobile (< md): full-screen canvas + floating dock ──────────── */}
+      {/* ── Mobile (< md): full-screen canvas + top nav bar ─────────────── */}
       <div
         className="flex gap-1 overflow-hidden md:hidden"
-        style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 0 }}
+        style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          left: 0,
+          zIndex: 0,
+          paddingTop: "calc(env(safe-area-inset-top, 0px) + 64px)",
+        }}
       >
+        <MobileTopNav items={MOBILE_NAV_ITEMS} />
+
         <div className="min-w-0 flex-1 overflow-y-auto">
           {isSettingsRoute ? (
             <div className="p-4">{children}</div>
@@ -316,7 +325,10 @@ export function ThreeColumnShell({ children }: { children?: React.ReactNode }) {
               onShowFeed={openFeedPanel}
             />
           ) : (
-            <ChatColumn onShowFeed={!feedPanelOpen ? openFeedPanel : undefined} />
+            <ChatColumn
+              onShowFeed={!feedPanelOpen ? openFeedPanel : undefined}
+              showSuggestions={false}
+            />
           )}
         </div>
 
@@ -336,12 +348,11 @@ export function ThreeColumnShell({ children }: { children?: React.ReactNode }) {
               width={feedWidth}
               resizing={splitFeedResizing}
               onHide={closeFeedPanel}
+              searchPosition="bottom"
               {...feedColumnProps}
             />
           </>
         )}
-
-        <MobileBottomNav items={MOBILE_NAV_ITEMS} />
       </div>
     </>
   );

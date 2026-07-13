@@ -135,9 +135,16 @@ interface FeedColumnProps {
   selectedPostId: string | null;
   onSelectPost: (post: FeedPost) => void;
   onHide: () => void;
+  searchPosition?: "top" | "bottom";
 }
 
-export function FeedColumn({ posts, selectedPostId, onSelectPost, onHide }: FeedColumnProps) {
+export function FeedColumn({
+  posts,
+  selectedPostId,
+  onSelectPost,
+  onHide,
+  searchPosition = "top",
+}: FeedColumnProps) {
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -160,10 +167,17 @@ export function FeedColumn({ posts, selectedPostId, onSelectPost, onHide }: Feed
     setQuery("");
   };
 
+  const searchAtBottom = searchPosition === "bottom";
+
   return (
     <div className="relative flex h-full w-full flex-col overflow-hidden rounded-3xl">
       {/* Scrollable post list */}
-      <div className="flex flex-1 flex-col items-center overflow-y-auto pb-2.5 pt-20 scrollbar-hide">
+      <div
+        className={cx(
+          "flex flex-1 flex-col items-center overflow-y-auto pt-20 scrollbar-hide",
+          searchAtBottom ? "pb-20" : "pb-2.5",
+        )}
+      >
         {filtered.length === 0 ? (
           <div className="w-full px-4 py-12 text-center text-tertiary text-sm">No posts found.</div>
         ) : (
@@ -202,6 +216,31 @@ export function FeedColumn({ posts, selectedPostId, onSelectPost, onHide }: Feed
         ))}
       </div>
 
+      {/* Progressive blur at bottom, mirrored — only when the search bar lives down there */}
+      {searchAtBottom && (
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-10 overflow-hidden rounded-b-3xl"
+          style={{ height: PROGRESSIVE_BLUR_LAYERS[PROGRESSIVE_BLUR_LAYERS.length - 1].height }}
+        >
+          {PROGRESSIVE_BLUR_LAYERS.map(({ blur, height }, i) => (
+            <div
+              key={i}
+              className="overflow-hidden rounded-b-3xl"
+              style={{
+                position: "absolute",
+                inset: 0,
+                top: "auto",
+                height,
+                backdropFilter: `blur(${blur})`,
+                WebkitBackdropFilter: `blur(${blur})`,
+                maskImage: "linear-gradient(to top, black 0%, transparent 100%)",
+                WebkitMaskImage: "linear-gradient(to top, black 0%, transparent 100%)",
+              }}
+            />
+          ))}
+        </div>
+      )}
+
       {searchOpen && (
         <button
           type="button"
@@ -213,7 +252,7 @@ export function FeedColumn({ posts, selectedPostId, onSelectPost, onHide }: Feed
 
       {/* Floating title — no background, sits above the blur */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center gap-3 px-8 py-5">
-        {searchOpen ? (
+        {searchOpen && !searchAtBottom ? (
           <div className="pointer-events-auto relative flex h-9 min-w-0 flex-1 items-center rounded-2xl border border-gray-200/60 bg-white/20 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.02]">
             <Search className="absolute left-3 size-4 text-quaternary" />
             <input
@@ -233,7 +272,7 @@ export function FeedColumn({ posts, selectedPostId, onSelectPost, onHide }: Feed
         )}
 
         <div className="pointer-events-auto flex shrink-0 items-center gap-1">
-          {!searchOpen && (
+          {!searchAtBottom && !searchOpen && (
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
@@ -253,6 +292,27 @@ export function FeedColumn({ posts, selectedPostId, onSelectPost, onHide }: Feed
           </button>
         </div>
       </div>
+
+      {/* Floating search bar pinned to the bottom, mobile layout */}
+      {searchAtBottom && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex items-center px-8 py-5">
+          <div className="pointer-events-auto relative flex h-11 w-full items-center rounded-2xl border border-gray-200/60 bg-white/20 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-white/[0.02]">
+            <Search className="absolute left-3.5 size-4 text-quaternary" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              placeholder="Search feed…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => setSearchOpen(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") closeSearch();
+              }}
+              className="h-full w-full rounded-2xl bg-transparent pl-10 pr-4 text-sm text-primary outline-none placeholder-quaternary focus:outline-none"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

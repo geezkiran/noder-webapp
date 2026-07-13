@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUp, ChevronDown, History, Paperclip, Sparkle, SquarePen, Square } from "lucide-react";
 import { SidePanelIcon } from "@/components/icons/side-panel-icon";
+import { MobileNavMenu } from "./mobile-nav-menu";
+import type { DockNavItem } from "./dock-nav-column";
 import { cx } from "@/utils/cx";
 
 const PROGRESSIVE_BLUR_LAYERS = [
@@ -229,7 +231,7 @@ function Composer({
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Message…"
-        className="max-h-[200px] w-full resize-none bg-transparent pl-1 text-[15px] leading-relaxed text-primary outline-none placeholder-quaternary"
+        className="max-h-[200px] w-full resize-none overflow-y-auto bg-transparent pl-1 text-base leading-relaxed text-primary outline-none scrollbar-hide placeholder-quaternary md:text-[15px]"
       />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-0.5">
@@ -327,9 +329,11 @@ function HistoryPanel({
 export function ChatColumn({
   onShowFeed,
   showSuggestions = true,
+  mobileNavItems,
 }: {
   onShowFeed?: () => void;
   showSuggestions?: boolean;
+  mobileNavItems?: DockNavItem[];
 }) {
   const [sessions, setSessions] = useState<ChatSession[]>(() => [newSession()]);
   const [activeId, setActiveId] = useState(() => sessions[0].id);
@@ -399,7 +403,6 @@ export function ChatColumn({
               onChange={setInput}
               onSubmit={() => send(input)}
               isGenerating={isGenerating}
-              autoFocus
               modelId={modelId}
               effort={effort}
               onModelChange={setModelId}
@@ -486,8 +489,16 @@ export function ChatColumn({
 
       {/* Floating title + new chat / history controls */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-3 px-8 py-5">
-        {!isEmpty && <h2 className="flex-1 text-2xl font-medium text-primary">Chat</h2>}
-        <div className={cx("pointer-events-auto relative flex shrink-0 items-center gap-2.5", isEmpty && "ml-auto")}>
+        {mobileNavItems ? (
+          <div className="pointer-events-auto min-w-0 flex-1">
+            <MobileNavMenu items={mobileNavItems} title="Chat" />
+          </div>
+        ) : (
+          <div className="min-w-0 flex-1">
+            {!isEmpty && <h2 className="truncate text-2xl font-medium text-primary">Chat</h2>}
+          </div>
+        )}
+        <div className="pointer-events-auto relative flex shrink-0 items-center gap-2.5">
           <button
             type="button"
             onClick={startNewChat}

@@ -1,0 +1,3 @@
+export const MAIN_SIDEBAR_WIDTH = 241;
+export const SIDEBAR_MARGIN = 16;
+export const SIDEBAR_OFFSET = MAIN_SIDEBAR_WIDTH + SIDEBAR_MARGIN * 2;

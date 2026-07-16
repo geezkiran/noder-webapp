@@ -1,12 +1,13 @@
 "use client";
 
-import { type FC } from "react";
+import { Fragment, type FC } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Moon, Sun } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Moon, Sun, Plus } from "lucide-react";
 import { NoderLogo } from "@/components/icons/noder-logo";
 import { ThemeToggle } from "./theme-toggle";
 import { useTheme } from "./theme-provider";
+import { useAuth } from "@/contexts/auth-context";
 import { cx } from "@/utils/cx";
 
 // ─── Custom gear icon (Bootstrap bi-gear) ────────────────────────────────────
@@ -58,6 +59,31 @@ function Tip({ label, children }: { label: string; children: React.ReactNode }) 
         {label}
       </span>
     </div>
+  );
+}
+
+// ─── Compose (write a post) ───────────────────────────────────────────────────
+
+function ComposeItem() {
+  const { status } = useAuth();
+  const router = useRouter();
+
+  const handleClick = () => {
+    if (status === "authenticated") router.push("/compose");
+    else router.push("/login");
+  };
+
+  return (
+    <Tip label="Write a post">
+      <button
+        type="button"
+        onClick={handleClick}
+        aria-label="Write a post"
+        className={cx(NAV_BUTTON, "rounded-full bg-brand-solid text-white hover:bg-brand-solid_hover")}
+      >
+        <Plus className={NAV_ICON} strokeWidth={1.75} />
+      </button>
+    </Tip>
   );
 }
 
@@ -125,20 +151,36 @@ function SettingsItem({ active }: { active: boolean }) {
   );
 }
 
-const PROFILE = { name: "Kiran Prakash", handle: "@kiran", initials: "KR" };
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
 
 function ProfileItem() {
+  const { user, status } = useAuth();
+  const label = user ? `${user.display_name} · @${user.username}` : "Sign in";
+  const href = status === "authenticated" ? "/settings" : "/login";
+
   return (
-    <Tip label={`${PROFILE.name} · ${PROFILE.handle}`}>
-      <button
-        type="button"
-        aria-label="Switch account"
+    <Tip label={label}>
+      <Link
+        href={href}
+        aria-label={label}
         className={cx(NAV_BUTTON, "transition-colors hover:bg-neutral-300 hover:ring-2 hover:ring-neutral-400 dark:hover:bg-neutral-800 dark:hover:ring-neutral-700")}
       >
-        <div className="size-7 rounded-full bg-violet-500 flex items-center justify-center text-[11px] font-bold text-white ring-2 ring-white dark:ring-neutral-950">
-          {PROFILE.initials}
+        <div className="size-7 rounded-full bg-violet-500 flex items-center justify-center text-[11px] font-bold text-white ring-2 ring-white dark:ring-neutral-950 overflow-hidden">
+          {user?.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={user.avatar_url} alt={user.display_name} className="size-full object-cover" />
+          ) : (
+            getInitials(user?.display_name ?? "?")
+          )}
         </div>
-      </button>
+      </Link>
     </Tip>
   );
 }
@@ -159,14 +201,16 @@ export function DockNavColumn({ items }: DockNavColumnProps) {
         <NoderLogo collapsed />
       </div>
 
-      {/* Nav items */}
+      {/* Nav items — add-post button sits in the 3rd slot */}
       <nav className="mt-2 flex flex-1 flex-col items-center justify-center gap-1 overflow-visible">
-        {items.map((item) => (
-          <NavItem
-            key={item.href}
-            item={item}
-            active={pathname === item.href || pathname.startsWith(item.href + "/")}
-          />
+        {items.map((item, index) => (
+          <Fragment key={item.href}>
+            {index === 2 && <ComposeItem />}
+            <NavItem
+              item={item}
+              active={pathname === item.href || pathname.startsWith(item.href + "/")}
+            />
+          </Fragment>
         ))}
       </nav>
 

@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "@/styles/globals.css";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { ThemeScript } from "@/components/layout/theme-script";
+import { AuthProvider } from "@/contexts/auth-context";
+import { ComposeProvider } from "@/contexts/compose-context";
 
 export const metadata: Metadata = {
   title: "Noder Enterprise",
@@ -27,7 +29,11 @@ export default function RootLayout({
         <ThemeScript />
       </head>
       <body className="flex min-h-screen flex-col bg-gray-200 p-3 antialiased dark:bg-black">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <ComposeProvider>{children}</ComposeProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

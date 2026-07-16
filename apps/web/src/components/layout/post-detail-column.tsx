@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { MessageCircle, Heart, BadgeCheck, Plus, Minus, Locate } from "lucide-react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowBigUp, Bookmark, GitBranch, Plus, Minus, Locate } from "lucide-react";
 import { SidePanelIcon } from "@/components/icons/side-panel-icon";
 import { MobileNavMenu } from "./mobile-nav-menu";
 import type { DockNavItem } from "./dock-nav-column";
-import type { FeedPost } from "./feed-data";
+import { timeAgo, type NodeCard } from "./feed-data";
+import { useAuth } from "@/contexts/auth-context";
+import { bookmarkNode, unbookmarkNode, voteNode } from "@/lib/api/nodes";
 import { cx } from "@/utils/cx";
 
 const PROGRESSIVE_BLUR_LAYERS = [
@@ -15,52 +18,6 @@ const PROGRESSIVE_BLUR_LAYERS = [
   { blur: "2px", height: 64 },
 ] as const;
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
-const avatarColors = [
-  "bg-violet-500",
-  "bg-blue-500",
-  "bg-blue-500",
-  "bg-amber-500",
-  "bg-rose-500",
-  "bg-cyan-500",
-  "bg-pink-500",
-  "bg-indigo-500",
-];
-
-function getAvatarColor(name: string) {
-  return avatarColors[name.charCodeAt(0) % avatarColors.length];
-}
-
-function Avatar({ src, name, size = "md" }: { src?: string; name: string; size?: "sm" | "md" | "lg" }) {
-  const sizeClass = size === "lg" ? "size-12" : size === "sm" ? "size-8" : "size-10";
-  const textClass = size === "lg" ? "text-base" : size === "sm" ? "text-xs" : "text-sm";
-  if (src) {
-    return <img src={src} alt={name} className={cx(sizeClass, "rounded-full object-cover shrink-0")} />;
-  }
-  return (
-    <div
-      className={cx(
-        sizeClass,
-        textClass,
-        "rounded-full shrink-0 flex items-center justify-center font-semibold text-white",
-        getAvatarColor(name),
-      )}
-    >
-      {getInitials(name)}
-    </div>
-  );
-}
-
 // ─── Discover card (portrait aspect) ─────────────────────────────────────────
 
 function DiscoverPostCard({
@@ -69,11 +26,57 @@ function DiscoverPostCard({
   isDropTarget,
   onSelect,
 }: {
-  post: FeedPost;
+  post: NodeCard;
   selected: boolean;
   isDropTarget?: boolean;
   onSelect: () => void;
 }) {
+  const router = useRouter();
+  const { status } = useAuth();
+  const [voteCount, setVoteCount] = useState(post.vote_count);
+  const [voted, setVoted] = useState(false);
+  const [bookmarkCount, setBookmarkCount] = useState(post.bookmark_count);
+  const [bookmarked, setBookmarked] = useState(false);
+
+  const requireAuth = () => {
+    if (status !== "authenticated") {
+      router.push("/login");
+      return false;
+    }
+    return true;
+  };
+
+  const handleVote = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!requireAuth()) return;
+    const next = voted ? 0 : 1;
+    try {
+      const { vote_count } = await voteNode(post.id, next);
+      setVoteCount(vote_count);
+      setVoted(next === 1);
+    } catch {
+      // best-effort UI action
+    }
+  };
+
+  const handleBookmark = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!requireAuth()) return;
+    try {
+      if (bookmarked) {
+        await unbookmarkNode(post.id);
+        setBookmarked(false);
+        setBookmarkCount((c) => Math.max(0, c - 1));
+      } else {
+        await bookmarkNode(post.id);
+        setBookmarked(true);
+        setBookmarkCount((c) => c + 1);
+      }
+    } catch {
+      // best-effort UI action
+    }
+  };
+
   return (
     <button
       type="button"
@@ -89,41 +92,44 @@ function DiscoverPostCard({
       )}
     >
       <div className="flex h-full flex-col p-3.5">
-        <div className="flex items-center gap-2.5">
-          <Avatar src={post.author.avatar} name={post.author.name} size="sm" />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1">
-              <span className="truncate text-sm font-semibold text-primary">{post.author.name}</span>
-              {post.author.verified && (
-                <BadgeCheck className="size-3 shrink-0 text-blue-600 dark:text-blue-400" strokeWidth={2.5} />
-              )}
-            </div>
-            <span className="truncate text-xs text-tertiary">@{post.author.handle}</span>
-          </div>
-        </div>
+        {post.hierarchy_path.length > 0 && (
+          <span className="truncate text-xs text-tertiary">{post.hierarchy_path.join(" / ")}</span>
+        )}
 
-        <p className="mt-3 line-clamp-6 flex-1 text-sm leading-relaxed text-secondary">{post.content}</p>
+        <p className="mt-1 line-clamp-2 text-sm font-semibold text-primary">{post.title}</p>
 
-        {post.tags && post.tags.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {post.tags.slice(0, 3).map((tag) => (
-              <span key={tag} className="text-xs text-blue-600 dark:text-blue-400">
-                #{tag}
-              </span>
-            ))}
-          </div>
+        {post.summary && (
+          <p className="mt-1.5 line-clamp-4 flex-1 text-sm leading-relaxed text-secondary">{post.summary}</p>
         )}
 
         <div className="mt-auto flex items-center gap-3 border-t border-secondary pt-3 text-quaternary">
-          <span className="flex items-center gap-1 text-xs">
-            <MessageCircle className="size-3.5" />
-            {post.stats.replies}
+          <span
+            role="button"
+            onClick={handleVote}
+            className={cx(
+              "flex items-center gap-1 text-xs transition-colors",
+              voted ? "text-brand-secondary" : "hover:text-secondary",
+            )}
+          >
+            <ArrowBigUp className="size-3.5" fill={voted ? "currentColor" : "none"} />
+            {voteCount}
+          </span>
+          <span
+            role="button"
+            onClick={handleBookmark}
+            className={cx(
+              "flex items-center gap-1 text-xs transition-colors",
+              bookmarked ? "text-brand-secondary" : "hover:text-secondary",
+            )}
+          >
+            <Bookmark className="size-3.5" fill={bookmarked ? "currentColor" : "none"} />
+            {bookmarkCount}
           </span>
           <span className="flex items-center gap-1 text-xs">
-            <Heart className="size-3.5" />
-            {post.stats.likes}
+            <GitBranch className="size-3.5" />
+            {post.relation_count}
           </span>
-          <span className="ml-auto text-xs text-tertiary">{post.timeAgo}</span>
+          <span className="ml-auto text-xs text-tertiary">{timeAgo(post.created_at)}</span>
         </div>
       </div>
     </button>
@@ -131,15 +137,6 @@ function DiscoverPostCard({
 }
 
 // ─── Canvas defaults ──────────────────────────────────────────────────────────
-
-const INITIAL_CARD_LAYOUT: Record<string, { x: number; y: number }> = {
-  "1": { x: 20,  y: 20  },
-  "2": { x: 230, y: 70  },
-  "3": { x: 440, y: 20  },
-  "4": { x: 20,  y: 320 },
-  "5": { x: 230, y: 380 },
-  "6": { x: 440, y: 320 },
-};
 
 const CARD_WIDTH   = 190;
 const CARD_HEIGHT  = CARD_WIDTH * 4 / 3; // matches the card's aspect-[3/4]
@@ -152,12 +149,27 @@ const INITIAL_PAN  = { x: 16, y: 16 };
 interface Transform { x: number; y: number; scale: number; }
 type CardPositions = Record<string, { x: number; y: number }>;
 
+// Grid layout for however many real nodes we have — no backend concept of
+// canvas position, so we just tile them and let the user drag from there.
+const GRID_GAP = 40;
+const GRID_COLS = 3;
+
+function gridLayout(ids: string[]): CardPositions {
+  const positions: CardPositions = {};
+  ids.forEach((id, i) => {
+    const col = i % GRID_COLS;
+    const row = Math.floor(i / GRID_COLS);
+    positions[id] = { x: 20 + col * (CARD_WIDTH + GRID_GAP), y: 20 + row * (CARD_HEIGHT + GRID_GAP) };
+  });
+  return positions;
+}
+
 // ─── PostDetailColumn ─────────────────────────────────────────────────────────
 
 interface PostDetailColumnProps {
-  post: FeedPost | null;
-  posts: FeedPost[];
-  onSelectPost: (post: FeedPost) => void;
+  post: NodeCard | null;
+  posts: NodeCard[];
+  onSelectPost: (post: NodeCard) => void;
   feedVisible?: boolean;
   onShowFeed?: () => void;
   mobileNavItems?: DockNavItem[];
@@ -171,8 +183,9 @@ export function PostDetailColumn({
   onShowFeed,
   mobileNavItems,
 }: PostDetailColumnProps) {
+  const initialLayout = useMemo(() => gridLayout(posts.map((p) => p.id)), [posts]);
   const [transform, setTransform]       = useState<Transform>({ x: INITIAL_PAN.x, y: INITIAL_PAN.y, scale: INITIAL_ZOOM });
-  const [cardPositions, setCardPositions] = useState<CardPositions>(INITIAL_CARD_LAYOUT);
+  const [cardPositions, setCardPositions] = useState<CardPositions>(initialLayout);
   const [isCanvasPanning, setIsCanvasPanning] = useState(false);
   const [activeCardId, setActiveCardId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -183,10 +196,22 @@ export function PostDetailColumn({
   const cardDragMoved  = useRef(false);
   const lastMouse      = useRef({ x: 0, y: 0 });
   const scaleRef       = useRef(INITIAL_ZOOM);
-  const cardPositionsRef = useRef<CardPositions>(INITIAL_CARD_LAYOUT);
+  const cardPositionsRef = useRef<CardPositions>(initialLayout);
   // Touch tracking: stores the previous frame's touch positions
   const lastTouches    = useRef<{ x: number; y: number }[]>([]);
   useEffect(() => { scaleRef.current = transform.scale; }, [transform.scale]);
+
+  // Seed layout for any newly-arrived posts (e.g. once the feed fetch resolves)
+  // without discarding positions the user has already dragged.
+  useEffect(() => {
+    setCardPositions((prev) => {
+      const missing = posts.filter((p) => !prev[p.id]);
+      if (missing.length === 0) return prev;
+      const next = { ...prev, ...gridLayout(missing.map((p) => p.id)) };
+      cardPositionsRef.current = next;
+      return next;
+    });
+  }, [posts]);
 
   // ── Find which other card the dragged card's center is currently over ───────
   const findOverlapTarget = useCallback(

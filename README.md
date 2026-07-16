@@ -1,55 +1,49 @@
 # Noder Enterprise
 
-A scalable monorepo with a Next.js frontend, Node.js API, and MongoDB database.
+A Next.js frontend. The API is the separate [`NoderBackend-Fable`](../NoderBackend-Fable)
+repo (Fastify + Postgres + Redis) — run it alongside this repo during development.
+
+`apps/api` (Express + MongoDB) is a retired stub, left on disk but no longer
+started by `npm run dev` or built by `npm run build`. Nothing in `apps/web`
+calls it anymore.
 
 ## Structure
 
 ```text
 apps/
-  api/          Express API, MongoDB models, feature modules
   web/          Next.js App Router frontend
+  api/          Retired Express/Mongo stub (unused, kept for reference)
 packages/
-  shared/       Shared TypeScript types
+  shared/       Shared TypeScript types (currently only used by the retired apps/api)
 ```
 
 ## Prerequisites
 
 - Node.js 20+
-- MongoDB running locally or a MongoDB Atlas connection string
+- `NoderBackend-Fable` running locally on port 3000 (see its own README)
 
 ## Setup
 
 ```bash
 npm install
 npm run build -w @noder/shared
-cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env.local
-npm run seed
 npm run dev
 ```
 
-- Web: http://localhost:3000
-- API: http://localhost:4000
+- Web: http://localhost:3002
+- API: http://localhost:3000 (from the `NoderBackend-Fable` repo — run `npm run dev` there separately)
 
 ## Scripts
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Start API and web together |
-| `npm run dev:web` | Start Next.js only |
-| `npm run dev:api` | Start API only |
-| `npm run seed` | Seed MongoDB with sample projects |
-| `npm run build` | Build shared package, API, and web |
-
-## API
-
-- `GET /api/projects` — list projects (`?search=` and `?tags=Web Design,UI Design`)
-- `GET /api/projects/tags` — list distinct tags
-- `GET /health` — health check
+| `npm run dev` | Start the Next.js web app (port 3002) |
+| `npm run dev:web` | Same as `npm run dev` |
+| `npm run build` | Build shared package and web |
 
 ## Adding Features
 
-1. Add shared types in `packages/shared/src/types/`
-2. Create a module under `apps/api/src/modules/<feature>/`
-3. Add UI under `apps/web/src/components/<feature>/`
-4. Wire routes in `apps/api/src/server.ts` and pages in `apps/web/src/app/`
+1. Add UI under `apps/web/src/components/<feature>/`
+2. Add API client functions under `apps/web/src/lib/api/`
+3. Wire pages in `apps/web/src/app/`

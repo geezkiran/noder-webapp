@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ChatColumn } from "./chat-column";
 import { FeedColumn } from "./feed-column";
 import { PostDetailColumn } from "./post-detail-column";
-import { feedPosts, type FeedPost } from "./feed-data";
+import type { NodeCard } from "./feed-data";
 import { DockNavColumn, NAV_COLUMN_BASE, NAV_DOCK_WIDTH, type DockNavItem } from "./dock-nav-column";
 import { MobileNavMenu } from "./mobile-nav-menu";
+import { useAuth } from "@/contexts/auth-context";
+import { useCompose } from "@/contexts/compose-context";
+import { getFeed, getTrending } from "@/lib/api/feed";
 import {
   Home,
   Bookmark,
@@ -119,9 +122,9 @@ function FeedColumnSlot({
   open: boolean;
   width: number;
   resizing: boolean;
-  posts: FeedPost[];
+  posts: NodeCard[];
   selectedPostId: string | null;
-  onSelectPost: (post: FeedPost) => void;
+  onSelectPost: (post: NodeCard) => void;
   onHide: () => void;
   searchPosition?: "top" | "bottom";
 }) {
@@ -157,13 +160,37 @@ const MOBILE_NAV_ITEMS = NAV_ITEMS;
 
 export function ThreeColumnShell({ children }: { children?: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const isGraphRoute = pathname === "/latest" || pathname?.startsWith("/latest/");
   const isSettingsRoute = pathname === "/settings" || pathname?.startsWith("/settings/");
+  const isFeedRoute = pathname === "/feed" || pathname?.startsWith("/feed/");
 
-  const [selectedPost, setSelectedPost] = useState<FeedPost>(feedPosts[0]);
+  const { status } = useAuth();
+  const { onPostCreated } = useCompose();
+  const [posts, setPosts] = useState<NodeCard[]>([]);
+  const [selectedPost, setSelectedPost] = useState<NodeCard | null>(null);
   const [feedWidth, setFeedWidth]       = useState(380);
   const [feedVisible, setFeedVisible]   = useState(true);
   const [feedPanelOpen, setFeedPanelOpen] = useState(false);
+
+  useEffect(() => {
+    if (status === "loading") return;
+    const load = status === "authenticated" ? getFeed() : getTrending();
+    load
+      .then(({ data }) => {
+        setPosts(data);
+        setSelectedPost((prev) => prev ?? data[0] ?? null);
+      })
+      .catch(() => setPosts([]));
+  }, [status]);
+
+  // A freshly composed post lands at the top of the feed and becomes selected.
+  useEffect(() => {
+    return onPostCreated((node) => {
+      setPosts((prev) => [node, ...prev.filter((p) => p.id !== node.id)]);
+      setSelectedPost(node);
+    });
+  }, [onPostCreated]);
 
   const openFeedPanel = useCallback(() => setFeedPanelOpen(true), []);
   const closeFeedPanel = useCallback(() => setFeedPanelOpen(false), []);
@@ -178,10 +205,19 @@ export function ThreeColumnShell({ children }: { children?: React.ReactNode }) {
   );
 
   const feedColumnProps = {
-    posts: feedPosts,
+    posts,
     selectedPostId: selectedPost?.id ?? null,
     onSelectPost: setSelectedPost,
   };
+
+  // On the standalone /feed page, tapping a post opens it in the graph/detail view.
+  const selectPostFromFeedPage = useCallback(
+    (post: NodeCard) => {
+      setSelectedPost(post);
+      router.push("/latest");
+    },
+    [router],
+  );
 
   return (
     <>
@@ -198,12 +234,20 @@ export function ThreeColumnShell({ children }: { children?: React.ReactNode }) {
 
         {isSettingsRoute ? (
           <div className={cx(COLUMN_BASE, "min-w-0 flex-1 overflow-y-auto p-6 md:p-8")}>{children}</div>
+        ) : isFeedRoute ? (
+          <div className={cx(COLUMN_BASE, "min-w-0 flex-1 overflow-hidden")}>
+            <FeedColumn
+              posts={posts}
+              selectedPostId={selectedPost?.id ?? null}
+              onSelectPost={selectPostFromFeedPage}
+            />
+          </div>
         ) : isGraphRoute ? (
           <>
             <div className={cx(COLUMN_BASE, "min-w-0 flex-1 overflow-hidden")}>
               <PostDetailColumn
                 post={selectedPost}
-                posts={feedPosts}
+                posts={posts}
                 onSelectPost={setSelectedPost}
                 feedVisible={feedPanelOpen}
                 onShowFeed={openFeedPanel}
@@ -276,10 +320,18 @@ export function ThreeColumnShell({ children }: { children?: React.ReactNode }) {
               </div>
               {children}
             </div>
+          ) : isFeedRoute ? (
+            <FeedColumn
+              posts={posts}
+              selectedPostId={selectedPost?.id ?? null}
+              onSelectPost={selectPostFromFeedPage}
+              searchPosition="bottom"
+              mobileNavItems={MOBILE_NAV_ITEMS}
+            />
           ) : isGraphRoute ? (
             <PostDetailColumn
               post={selectedPost}
-              posts={feedPosts}
+              posts={posts}
               onSelectPost={setSelectedPost}
               feedVisible={feedPanelOpen}
               onShowFeed={openFeedPanel}

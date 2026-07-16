@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { ChevronDown, Newspaper, SquarePen } from "lucide-react";
+import { useAuth } from "@/contexts/auth-context";
 import { cx } from "@/utils/cx";
 import type { DockNavItem } from "./dock-nav-column";
 
@@ -11,8 +12,16 @@ import type { DockNavItem } from "./dock-nav-column";
 
 export function MobileNavMenu({ items, title }: { items: DockNavItem[]; title: string }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { status } = useAuth();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleCompose = () => {
+    setOpen(false);
+    if (status === "authenticated") router.push("/compose");
+    else router.push("/login");
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -50,6 +59,18 @@ export function MobileNavMenu({ items, title }: { items: DockNavItem[]; title: s
           role="menu"
           className="absolute left-0 top-full z-40 mt-2 min-w-[190px] rounded-2xl border border-gray-300 bg-transparent p-1.5 shadow-lg backdrop-blur-md dark:border-white/20"
         >
+          <li role="none">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleCompose}
+              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[14px] font-medium text-white bg-brand-solid transition-colors hover:bg-brand-solid_hover"
+            >
+              <SquarePen className="size-[18px]" strokeWidth={1.75} />
+              Write a post
+            </button>
+          </li>
+          <li role="none" className="my-1 border-t border-secondary" />
           {items.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
@@ -72,6 +93,28 @@ export function MobileNavMenu({ items, title }: { items: DockNavItem[]; title: s
               </li>
             );
           })}
+          <li role="none">
+            {(() => {
+              const active = pathname === "/feed" || pathname.startsWith("/feed/");
+              return (
+                <Link
+                  href="/feed"
+                  role="menuitem"
+                  onClick={() => setOpen(false)}
+                  aria-current={active ? "page" : undefined}
+                  className={cx(
+                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium transition-colors",
+                    active
+                      ? "bg-neutral-200 text-primary dark:bg-neutral-800"
+                      : "text-secondary hover:bg-secondary",
+                  )}
+                >
+                  <Newspaper className="size-[18px]" strokeWidth={1.75} />
+                  Latest posts
+                </Link>
+              );
+            })()}
+          </li>
         </ul>
       )}
     </div>

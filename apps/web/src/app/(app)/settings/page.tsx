@@ -18,7 +18,6 @@ import {
   Zap,
   Download,
   BadgeCheck,
-  MapPin,
   Calendar,
   Camera,
 } from "lucide-react";
@@ -30,7 +29,21 @@ import { Badge } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
 import { Toggle } from "@/components/base/toggle/toggle";
+import { useAuth } from "@/contexts/auth-context";
 import { cx } from "@/utils/cx";
+
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+function formatJoinDate(iso: string) {
+  return `Joined ${new Date(iso).toLocaleDateString(undefined, { month: "long", year: "numeric" })}`;
+}
 
 const SECTIONS: SettingsNavSection[] = [
   { id: "profile", label: "Profile", icon: User },
@@ -72,6 +85,7 @@ const INTEGRATIONS = [
 ];
 
 export default function SettingsPage() {
+  const { user, logout } = useAuth();
   const [emailNotifs, setEmailNotifs] = useState({
     product: true,
     security: true,
@@ -114,7 +128,12 @@ export default function SettingsPage() {
               <div className="px-6">
                 <div className="-mt-12 flex items-end justify-between gap-4 sm:-mt-14">
                   <div className="group relative shrink-0 rounded-full ring-4 ring-primary">
-                    <Avatar size="2xl" initials="AK" alt="Alex Kim" />
+                    <Avatar
+                      size="2xl"
+                      src={user?.avatar_url ?? undefined}
+                      initials={user ? getInitials(user.display_name || user.username) : undefined}
+                      alt={user?.display_name ?? "Profile"}
+                    />
                     <button
                       type="button"
                       aria-label="Change profile photo"
@@ -130,34 +149,32 @@ export default function SettingsPage() {
 
                 <div className="mt-3">
                   <div className="flex items-center gap-1.5">
-                    <p className="text-[19px] font-semibold text-primary">Alex Kim</p>
-                    <BadgeCheck className="size-4.5 text-fg-brand-primary" strokeWidth={2} />
+                    <p className="text-[19px] font-semibold text-primary">{user?.display_name ?? "—"}</p>
+                    {user && user.role !== "user" && (
+                      <BadgeCheck className="size-4.5 text-fg-brand-primary" strokeWidth={2} />
+                    )}
                   </div>
-                  <p className="text-[15px] text-tertiary">@alexkim</p>
-                  <p className="mt-2 max-w-md text-[15px] text-secondary">
-                    Building at Noder. Design systems, canvases, and agents.
-                  </p>
+                  <p className="text-[15px] text-tertiary">@{user?.username ?? "—"}</p>
+                  {user?.bio && <p className="mt-2 max-w-md text-[15px] text-secondary">{user.bio}</p>}
                   <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[15px] text-tertiary">
-                    <span className="flex items-center gap-1">
-                      <MapPin className="size-4" strokeWidth={1.75} />
-                      San Francisco, CA
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Calendar className="size-4" strokeWidth={1.75} />
-                      Joined March 2024
-                    </span>
+                    {user && (
+                      <span className="flex items-center gap-1">
+                        <Calendar className="size-4" strokeWidth={1.75} />
+                        {formatJoinDate(user.created_at)}
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 <div className="mt-4 flex gap-5 pb-5 text-[15px]">
                   <span className="text-secondary">
-                    <span className="font-semibold text-primary">248</span> Posts
+                    <span className="font-semibold text-primary">{user?.node_count ?? 0}</span> Nodes
                   </span>
                   <span className="text-secondary">
-                    <span className="font-semibold text-primary">12.4K</span> Followers
+                    <span className="font-semibold text-primary">{user?.follower_count ?? 0}</span> Followers
                   </span>
                   <span className="text-secondary">
-                    <span className="font-semibold text-primary">186</span> Following
+                    <span className="font-semibold text-primary">{user?.following_count ?? 0}</span> Following
                   </span>
                 </div>
               </div>

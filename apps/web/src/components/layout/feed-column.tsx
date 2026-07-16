@@ -1,9 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Search, MessageCircle, Repeat2, Heart, BarChart2, BadgeCheck } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, ArrowBigUp, Bookmark, GitBranch } from "lucide-react";
 import { SidePanelIcon } from "@/components/icons/side-panel-icon";
-import type { FeedPost } from "./feed-data";
+import { MobileNavMenu } from "./mobile-nav-menu";
+import type { DockNavItem } from "./dock-nav-column";
+import { timeAgo, type NodeCard } from "./feed-data";
+import { useAuth } from "@/contexts/auth-context";
+import { bookmarkNode, unbookmarkNode, voteNode } from "@/lib/api/nodes";
+import { searchNodes } from "@/lib/api/search";
 import { cx } from "@/utils/cx";
 
 const PROGRESSIVE_BLUR_LAYERS = [
@@ -13,61 +19,61 @@ const PROGRESSIVE_BLUR_LAYERS = [
   { blur: "2px", height: 64 },
 ] as const;
 
-function getInitials(name: string) {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
-const avatarColors = [
-  "bg-violet-500",
-  "bg-blue-500",
-  "bg-blue-500",
-  "bg-amber-500",
-  "bg-rose-500",
-  "bg-cyan-500",
-  "bg-pink-500",
-  "bg-indigo-500",
-];
-
-function getAvatarColor(name: string) {
-  return avatarColors[name.charCodeAt(0) % avatarColors.length];
-}
-
-function Avatar({ src, name, size = "md" }: { src?: string; name: string; size?: "sm" | "md" }) {
-  const sizeClass = size === "sm" ? "size-8" : "size-10";
-  const textClass = size === "sm" ? "text-xs" : "text-sm";
-
-  if (src) {
-    return <img src={src} alt={name} className={cx(sizeClass, "rounded-full object-cover shrink-0")} />;
-  }
-
-  return (
-    <div
-      className={cx(
-        sizeClass,
-        textClass,
-        "rounded-full shrink-0 flex items-center justify-center font-semibold text-white",
-        getAvatarColor(name),
-      )}
-    >
-      {getInitials(name)}
-    </div>
-  );
-}
-
 function FeedPostCard({
   post,
   isSelected,
   onSelect,
 }: {
-  post: FeedPost;
+  post: NodeCard;
   isSelected: boolean;
   onSelect: () => void;
 }) {
+  const router = useRouter();
+  const { status } = useAuth();
+  const [voteCount, setVoteCount] = useState(post.vote_count);
+  const [voted, setVoted] = useState(false);
+  const [bookmarkCount, setBookmarkCount] = useState(post.bookmark_count);
+  const [bookmarked, setBookmarked] = useState(false);
+
+  const requireAuth = () => {
+    if (status !== "authenticated") {
+      router.push("/login");
+      return false;
+    }
+    return true;
+  };
+
+  const handleVote = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!requireAuth()) return;
+    const next = voted ? 0 : 1;
+    try {
+      const { vote_count } = await voteNode(post.id, next);
+      setVoteCount(vote_count);
+      setVoted(next === 1);
+    } catch {
+      // best-effort UI action — leave counts unchanged on failure
+    }
+  };
+
+  const handleBookmark = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!requireAuth()) return;
+    try {
+      if (bookmarked) {
+        await unbookmarkNode(post.id);
+        setBookmarked(false);
+        setBookmarkCount((c) => Math.max(0, c - 1));
+      } else {
+        await bookmarkNode(post.id);
+        setBookmarked(true);
+        setBookmarkCount((c) => c + 1);
+      }
+    } catch {
+      // best-effort UI action
+    }
+  };
+
   return (
     <button
       type="button"
@@ -77,53 +83,46 @@ function FeedPostCard({
         "bg-transparent shadow-sm",
       )}
     >
-      <div className="flex gap-3">
-        <Avatar src={post.author.avatar} name={post.author.name} />
-
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="font-semibold text-sm text-primary truncate">{post.author.name}</span>
-            {post.author.verified && (
-              <BadgeCheck className="size-3.5 shrink-0 text-blue-600 dark:text-blue-400" strokeWidth={2.5} />
-            )}
-            <span className="text-tertiary text-xs truncate">@{post.author.handle}</span>
-            <span className="text-quaternary text-xs">·</span>
-            <span className="text-tertiary text-xs shrink-0">{post.timeAgo}</span>
-          </div>
-
-          <p className="mt-1 text-lg text-secondary leading-snug line-clamp-3">{post.content}</p>
-
-          {post.tags && post.tags.length > 0 && (
-            <div className="flex gap-1.5 mt-2 flex-wrap">
-              {post.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-full border border-blue-600/40 px-2.5 py-0.5 text-xs text-blue-600 hover:bg-blue-50 dark:border-blue-400/40 dark:text-blue-400 dark:hover:bg-blue-400/10"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {post.hierarchy_path.length > 0 && (
+            <span className="text-tertiary text-xs truncate">{post.hierarchy_path.join(" / ")}</span>
           )}
+          <span className="text-quaternary text-xs">·</span>
+          <span className="text-tertiary text-xs shrink-0">{timeAgo(post.created_at)}</span>
+        </div>
 
-          <div className="flex items-center gap-4 mt-3">
-            <span className="flex items-center gap-1 text-quaternary text-xs">
-              <MessageCircle className="size-3.5" />
-              {post.stats.replies}
-            </span>
-            <span className="flex items-center gap-1 text-quaternary text-xs">
-              <Repeat2 className="size-3.5" />
-              {post.stats.reposts}
-            </span>
-            <span className="flex items-center gap-1 text-quaternary text-xs">
-              <Heart className="size-3.5" />
-              {post.stats.likes}
-            </span>
-            <span className="flex items-center gap-1 text-quaternary text-xs">
-              <BarChart2 className="size-3.5" />
-              {post.stats.views.toLocaleString()}
-            </span>
-          </div>
+        <p className="text-lg font-semibold text-primary leading-snug line-clamp-2">{post.title}</p>
+
+        {post.summary && <p className="text-sm text-secondary leading-snug line-clamp-3">{post.summary}</p>}
+
+        <div className="flex items-center gap-4 mt-2">
+          <span
+            role="button"
+            onClick={handleVote}
+            className={cx(
+              "flex items-center gap-1 text-xs transition-colors",
+              voted ? "text-brand-secondary" : "text-quaternary hover:text-secondary",
+            )}
+          >
+            <ArrowBigUp className="size-3.5" fill={voted ? "currentColor" : "none"} />
+            {voteCount}
+          </span>
+          <span
+            role="button"
+            onClick={handleBookmark}
+            className={cx(
+              "flex items-center gap-1 text-xs transition-colors",
+              bookmarked ? "text-brand-secondary" : "text-quaternary hover:text-secondary",
+            )}
+          >
+            <Bookmark className="size-3.5" fill={bookmarked ? "currentColor" : "none"} />
+            {bookmarkCount}
+          </span>
+          <span className="flex items-center gap-1 text-quaternary text-xs">
+            <GitBranch className="size-3.5" />
+            {post.relation_count}
+          </span>
         </div>
       </div>
     </button>
@@ -131,11 +130,14 @@ function FeedPostCard({
 }
 
 interface FeedColumnProps {
-  posts: FeedPost[];
+  posts: NodeCard[];
   selectedPostId: string | null;
-  onSelectPost: (post: FeedPost) => void;
-  onHide: () => void;
+  onSelectPost: (post: NodeCard) => void;
+  /** When provided, renders a "hide panel" button that calls this. */
+  onHide?: () => void;
   searchPosition?: "top" | "bottom";
+  /** When provided, the header title becomes a page-switcher dropdown on mobile. */
+  mobileNavItems?: DockNavItem[];
 }
 
 export function FeedColumn({
@@ -144,23 +146,43 @@ export function FeedColumn({
   onSelectPost,
   onHide,
   searchPosition = "top",
+  mobileNavItems,
 }: FeedColumnProps) {
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState<NodeCard[] | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (searchOpen) searchInputRef.current?.focus();
   }, [searchOpen]);
 
-  const filtered = query.trim()
+  // Debounced server-side search; falls back to local filtering instantly
+  // while the network result is in flight so the list never looks frozen.
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      setSearchResults(null);
+      return;
+    }
+    const handle = setTimeout(() => {
+      searchNodes(trimmed)
+        .then(({ data }) => setSearchResults(data))
+        .catch(() => setSearchResults(null));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [query]);
+
+  const localFiltered = query.trim()
     ? posts.filter(
         (p) =>
-          p.content.toLowerCase().includes(query.toLowerCase()) ||
-          p.author.name.toLowerCase().includes(query.toLowerCase()) ||
-          p.tags?.some((t) => t.toLowerCase().includes(query.toLowerCase())),
+          p.title.toLowerCase().includes(query.toLowerCase()) ||
+          p.summary?.toLowerCase().includes(query.toLowerCase()) ||
+          p.hierarchy_path.some((h) => h.toLowerCase().includes(query.toLowerCase())),
       )
     : posts;
+
+  const filtered = query.trim() ? (searchResults ?? localFiltered) : posts;
 
   const closeSearch = () => {
     setSearchOpen(false);
@@ -267,6 +289,13 @@ export function FeedColumn({
               className="h-full w-full rounded-2xl bg-transparent pl-9 pr-4 text-base text-primary outline-none placeholder-quaternary focus:outline-none md:text-sm"
             />
           </div>
+        ) : mobileNavItems ? (
+          <div className="flex-1">
+            <div className="md:hidden">
+              <MobileNavMenu items={mobileNavItems} title="Latest" />
+            </div>
+            <h2 className="hidden text-2xl font-medium text-primary md:block">Latest</h2>
+          </div>
         ) : (
           <h2 className="flex-1 text-2xl font-medium text-primary">Latest</h2>
         )}
@@ -282,7 +311,7 @@ export function FeedColumn({
               <Search className="size-[18px]" />
             </button>
           )}
-          {!searchAtBottom && (
+          {!searchAtBottom && onHide && (
             <button
               type="button"
               onClick={onHide}

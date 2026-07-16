@@ -1,10 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, ChevronDown, History, Paperclip, Sparkle, SquarePen, Square } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowUp, History, Paperclip, Sparkle, SquarePen, Square } from "lucide-react";
 import { SidePanelIcon } from "@/components/icons/side-panel-icon";
 import { MobileNavMenu } from "./mobile-nav-menu";
 import type { DockNavItem } from "./dock-nav-column";
+import { useAuth } from "@/contexts/auth-context";
+import { aiQuery } from "@/lib/api/ai";
+import type { AiQuerySource } from "@/lib/api/types";
 import { cx } from "@/utils/cx";
 
 const PROGRESSIVE_BLUR_LAYERS = [
@@ -20,6 +24,7 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  sources?: AiQuerySource[];
 }
 
 interface ChatSession {
@@ -29,27 +34,11 @@ interface ChatSession {
   updatedAt: number;
 }
 
-type ChatEffort = "Low" | "Medium" | "High";
-
-interface ChatModel {
-  id: string;
-  name: string;
-}
-
-const CHAT_MODELS: ChatModel[] = [
-  { id: "sonnet-4.6", name: "Sonnet 4.6" },
-  { id: "opus-4.8", name: "Opus 4.8" },
-  { id: "gpt-5.6", name: "GPT-5.6" },
-  { id: "composer-2.5", name: "Composer 2.5" },
-];
-
-const CHAT_EFFORTS: ChatEffort[] = ["Low", "Medium", "High"];
-
 const SUGGESTIONS = [
   "Summarize what's trending in my feed",
-  "Find posts about design systems",
+  "Find nodes about design systems",
   "What did I save last week?",
-  "Draft a reply to the top post",
+  "Explain the prerequisites for this topic",
 ];
 
 function newSession(): ChatSession {
@@ -59,12 +48,6 @@ function newSession(): ChatSession {
 function titleFromMessage(text: string) {
   const trimmed = text.trim().replace(/\s+/g, " ");
   return trimmed.length > 48 ? `${trimmed.slice(0, 48)}…` : trimmed;
-}
-
-// ─── Mock reply (no backend wired up yet) ────────────────────────────────────
-
-function mockReply(prompt: string) {
-  return `I don't have a model connected yet, so I can't really answer "${prompt}" — but this is where the response would stream in.`;
 }
 
 // ─── Autosize textarea ────────────────────────────────────────────────────────
@@ -91,93 +74,20 @@ function MessageBubble({ message }: { message: ChatMessage }) {
     );
   }
   return (
-    <div className="flex">
+    <div className="flex flex-col gap-2">
       <div className="max-w-[80%] pt-1 text-[15px] leading-relaxed text-primary">{message.content}</div>
-    </div>
-  );
-}
-
-// ─── Model selector ───────────────────────────────────────────────────────────
-
-function ModelSelector({
-  modelId,
-  effort,
-  onModelChange,
-  onEffortChange,
-}: {
-  modelId: string;
-  effort: ChatEffort;
-  onModelChange: (id: string) => void;
-  onEffortChange: (effort: ChatEffort) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const model = CHAT_MODELS.find((m) => m.id === modelId) ?? CHAT_MODELS[0];
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Select model"
-        aria-expanded={open}
-        className={cx(
-          "flex items-center gap-1 rounded-full px-2.5 py-1.5 text-[13px] transition-colors hover:bg-secondary",
-          open && "bg-secondary",
-        )}
-      >
-        <span className="font-medium text-primary">{model.name}</span>
-        <span className="text-secondary">{effort}</span>
-        <ChevronDown className="size-3.5 text-quaternary" strokeWidth={2} />
-      </button>
-
-      {open && (
-        <>
-          <button
-            type="button"
-            aria-label="Close model selector"
-            className="fixed inset-0 z-30 cursor-default"
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute bottom-full left-0 z-40 mb-2 w-52 overflow-hidden rounded-2xl border-[0.5px] border-gray-300 bg-white px-2 py-1.5 shadow-lg dark:border-neutral-800 dark:bg-[#161616]">
-            <div className="py-1">
-              <span className="px-1.5 text-xs font-medium text-tertiary">Model</span>
-            </div>
-            {CHAT_MODELS.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => { onModelChange(m.id); }}
-                className={cx(
-                  "flex w-full items-center rounded-xl px-2.5 py-2 text-left text-sm transition-colors",
-                  m.id === modelId
-                    ? "bg-neutral-200 font-medium text-primary dark:bg-neutral-800"
-                    : "text-primary hover:bg-secondary",
-                )}
-              >
-                {m.name}
-              </button>
-            ))}
-            <div className="my-1.5 h-px bg-gray-200 dark:bg-neutral-800" />
-            <div className="py-1">
-              <span className="px-1.5 text-xs font-medium text-tertiary">Effort</span>
-            </div>
-            {CHAT_EFFORTS.map((e) => (
-              <button
-                key={e}
-                type="button"
-                onClick={() => { onEffortChange(e); setOpen(false); }}
-                className={cx(
-                  "flex w-full items-center rounded-xl px-2.5 py-2 text-left text-sm transition-colors",
-                  e === effort
-                    ? "bg-neutral-200 font-medium text-primary dark:bg-neutral-800"
-                    : "text-secondary hover:bg-secondary",
-                )}
-              >
-                {e}
-              </button>
-            ))}
-          </div>
-        </>
+      {message.sources && message.sources.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {message.sources.map((s) => (
+            <span
+              key={s.id}
+              title={s.summary ?? undefined}
+              className="rounded-full border-[0.5px] border-gray-300 bg-white px-2.5 py-1 text-xs text-tertiary dark:border-neutral-800 dark:bg-[#161616]"
+            >
+              {s.title}
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -191,20 +101,12 @@ function Composer({
   onSubmit,
   isGenerating,
   autoFocus,
-  modelId,
-  effort,
-  onModelChange,
-  onEffortChange,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSubmit: () => void;
   isGenerating: boolean;
   autoFocus?: boolean;
-  modelId: string;
-  effort: ChatEffort;
-  onModelChange: (id: string) => void;
-  onEffortChange: (effort: ChatEffort) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useAutosize(textareaRef, value);
@@ -242,12 +144,7 @@ function Composer({
           >
             <Paperclip className="size-[18px]" />
           </button>
-          <ModelSelector
-            modelId={modelId}
-            effort={effort}
-            onModelChange={onModelChange}
-            onEffortChange={onEffortChange}
-          />
+          <span className="px-2 text-[13px] font-medium text-secondary">Claude Sonnet 4.6</span>
         </div>
         <button
           type="button"
@@ -340,10 +237,9 @@ export function ChatColumn({
   const [input, setInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [modelId, setModelId] = useState(CHAT_MODELS[0].id);
-  const [effort, setEffort] = useState<ChatEffort>("Medium");
   const scrollRef = useRef<HTMLDivElement>(null);
-  const genTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const router = useRouter();
+  const { status } = useAuth();
 
   const active = sessions.find((s) => s.id === activeId) ?? sessions[0];
   const messages = active.messages;
@@ -352,32 +248,54 @@ export function ChatColumn({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  useEffect(() => () => { if (genTimeout.current) clearTimeout(genTimeout.current); }, []);
+  const send = useCallback(
+    (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed || isGenerating) return;
 
-  const send = useCallback((text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed || isGenerating) return;
+      if (status !== "authenticated") {
+        router.push("/login");
+        return;
+      }
 
-    const sessionId = active.id;
-    const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: trimmed };
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === sessionId
-          ? { ...s, messages: [...s.messages, userMsg], title: s.messages.length === 0 ? titleFromMessage(trimmed) : s.title, updatedAt: Date.now() }
-          : s,
-      ),
-    );
-    setInput("");
-    setIsGenerating(true);
-
-    genTimeout.current = setTimeout(() => {
-      const assistantMsg: ChatMessage = { id: crypto.randomUUID(), role: "assistant", content: mockReply(trimmed) };
+      const sessionId = active.id;
+      const userMsg: ChatMessage = { id: crypto.randomUUID(), role: "user", content: trimmed };
       setSessions((prev) =>
-        prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, assistantMsg], updatedAt: Date.now() } : s)),
+        prev.map((s) =>
+          s.id === sessionId
+            ? { ...s, messages: [...s.messages, userMsg], title: s.messages.length === 0 ? titleFromMessage(trimmed) : s.title, updatedAt: Date.now() }
+            : s,
+        ),
       );
-      setIsGenerating(false);
-    }, 700);
-  }, [active.id, isGenerating]);
+      setInput("");
+      setIsGenerating(true);
+
+      aiQuery({ query: trimmed })
+        .then((result) => {
+          const assistantMsg: ChatMessage = {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: result.answer,
+            sources: result.sources,
+          };
+          setSessions((prev) =>
+            prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, assistantMsg], updatedAt: Date.now() } : s)),
+          );
+        })
+        .catch(() => {
+          const assistantMsg: ChatMessage = {
+            id: crypto.randomUUID(),
+            role: "assistant",
+            content: "Something went wrong reaching the AI service. Try again in a moment.",
+          };
+          setSessions((prev) =>
+            prev.map((s) => (s.id === sessionId ? { ...s, messages: [...s.messages, assistantMsg], updatedAt: Date.now() } : s)),
+          );
+        })
+        .finally(() => setIsGenerating(false));
+    },
+    [active.id, isGenerating, status, router],
+  );
 
   const startNewChat = useCallback(() => {
     if (active.messages.length === 0) return;
@@ -403,10 +321,6 @@ export function ChatColumn({
               onChange={setInput}
               onSubmit={() => send(input)}
               isGenerating={isGenerating}
-              modelId={modelId}
-              effort={effort}
-              onModelChange={setModelId}
-              onEffortChange={setEffort}
             />
             {showSuggestions && (
               <div className="mt-4 flex flex-wrap justify-center gap-2">
@@ -454,10 +368,6 @@ export function ChatColumn({
               onChange={setInput}
               onSubmit={() => send(input)}
               isGenerating={isGenerating}
-              modelId={modelId}
-              effort={effort}
-              onModelChange={setModelId}
-              onEffortChange={setEffort}
             />
           </div>
         </>
